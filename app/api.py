@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Query
-from app.schemas import Book, BookCreate, BookStatus, PaginatedBooks
+from app.schemas import Book, BookCreate, BookStatus, PaginatedBooks, BookSortField, SortOrder
 from app.services import BookService
 from uuid import UUID
 from typing import Optional
@@ -15,12 +15,20 @@ def get_service(db: AsyncSession = Depends(get_db)) -> BookService:
 async def get_all_books(
     status: Optional[BookStatus] = None,
     author: Optional[str] = None,
-    # Валідація: limit від 1 до 100, offset не менше 0
     limit: int = Query(10, ge=1, le=100),
-    offset: int = Query(0, ge=0),
+    sort_by: BookSortField = Query(BookSortField.ID),
+    order: SortOrder = Query(SortOrder.ASC),
+    cursor: Optional[str] = Query(None, description="Base64 курсор для пагінації"),
     service: BookService = Depends(get_service)
 ):
-    return await service.get_books(limit, offset, status, author)
+    return await service.get_books(
+        limit=limit, 
+        sort_by=sort_by.value, 
+        sort_order=order.value, 
+        cursor=cursor, 
+        status=status, 
+        author=author
+    )
 
 @router.get("/{book_id}", response_model=Book)
 async def get_book(book_id: UUID, service: BookService = Depends(get_service)):

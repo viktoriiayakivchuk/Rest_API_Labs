@@ -1,12 +1,21 @@
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 from uuid import UUID, uuid4
-from typing import Optional, List
+from typing import Optional, List, Literal
 from enum import Enum
 from datetime import datetime
 
 class BookStatus(str, Enum):
     AVAILABLE = "наявна"
     ISSUED = "видана"
+
+class SortOrder(str, Enum):
+    ASC = "asc"
+    DESC = "desc"
+
+class BookSortField(str, Enum):
+    TITLE = "title"
+    YEAR = "year"
+    ID = "id"
 
 class BookBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=100)
@@ -34,13 +43,11 @@ class BookCreate(BookBase):
     pass
 
 class Book(BookBase):
-    id: UUID = Field(default_factory=uuid4)
+    id: UUID
     model_config = ConfigDict(from_attributes=True)
 
 class PaginatedBooks(BaseModel):
     items: List[Book]
     total_count: int
     limit: int
-    offset: int
-    next_page: Optional[str] = None
-    prev_page: Optional[str] = None
+    next_cursor: Optional[str] = None
