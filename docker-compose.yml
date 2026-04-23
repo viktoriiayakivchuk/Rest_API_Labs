@@ -1,6 +1,3 @@
-
-version: '3.8'
-
 services:
   db:
     image: postgres:15
@@ -24,6 +21,8 @@ services:
       DATABASE_URL: "postgresql+asyncpg://user:password@db:5432/library"
     depends_on:
       - db
+    volumes:
+      - .:/code
 
 volumes:
   postgres_data:

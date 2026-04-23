@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Query
 from app.schemas import Book, BookCreate, BookStatus, PaginatedBooks
 from app.services import BookService
 from uuid import UUID
@@ -15,9 +15,9 @@ def get_service(db: AsyncSession = Depends(get_db)) -> BookService:
 async def get_all_books(
     status: Optional[BookStatus] = None,
     author: Optional[str] = None,
-    sort_by: Optional[str] = None,
-    limit: int = 10,
-    offset: int = 0,
+    # Валідація: limit від 1 до 100, offset не менше 0
+    limit: int = Query(10, ge=1, le=100),
+    offset: int = Query(0, ge=0),
     service: BookService = Depends(get_service)
 ):
     return await service.get_books(limit, offset, status, author)
@@ -35,5 +35,7 @@ async def create_book(book: BookCreate, service: BookService = Depends(get_servi
 
 @router.delete("/{book_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_book(book_id: UUID, service: BookService = Depends(get_service)):
-    await service.repo.delete(book_id)
+    success = await service.repo.delete(book_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Книгу не знайдено")
     return None

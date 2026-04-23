@@ -9,14 +9,32 @@ class BookService:
 
     async def get_books(self, limit: int, offset: int, status: str = None, author: str = None):
         items = await self.repo.get_all(limit=limit, offset=offset, status=status, author=author)
-        
         total_count = await self.repo.get_total_count(status=status, author=author)
+        
+        base_url = "/books/"
+        params = []
+        if status: params.append(f"status={status}")
+        if author: params.append(f"author={author}")
+        
+        query_str = "&".join(params)
+        prefix = f"?{query_str}&" if query_str else "?"
+
+        next_page = None
+        if offset + limit < total_count:
+            next_page = f"{base_url}{prefix}limit={limit}&offset={offset + limit}"
+
+        prev_page = None
+        if offset > 0:
+            prev_offset = max(0, offset - limit)
+            prev_page = f"{base_url}{prefix}limit={limit}&offset={prev_offset}"
         
         return {
             "items": items,
             "total_count": total_count,
             "limit": limit,
-            "offset": offset
+            "offset": offset,
+            "next_page": next_page,
+            "prev_page": prev_page
         }
 
     async def create_book(self, book_in: BookCreate):

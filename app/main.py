@@ -1,7 +1,3 @@
-"""
-Main entry point for the REST API application.
-Configures FastAPI app, CORS, lifespans, and routers.
-"""
 from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI, Request
@@ -13,25 +9,20 @@ from app.api import router
 from app.database import engine
 from app.models import Base
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
-    Handle initialization and teardown of the database connection.
-    On startup, tables are created. On shutdown, connection pool is disposed.
+    Ініціалізація БД при старті та очищення пулу з'єднань при зупинці.
     """
-    # Initialize database
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
-    # Dispose connection pool on shutdown
     await engine.dispose()
 
-
 app = FastAPI(
-    title="Book Management REST API",
-    description="A FastAPI-based REST API for managing books with PostgreSQL",
-    version="0.1.0",
+    title="Library Management API",
+    description="Advanced FastAPI logic with PostgreSQL, Pagination, and Validation",
+    version="0.2.0",
     lifespan=lifespan
 )
 
@@ -48,17 +39,17 @@ app.include_router(router)
 @app.exception_handler(SQLAlchemyError)
 async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
     """
-    Global handler for database exceptions.
-    Prevents leaking internal database errors (like SQL queries or structure) to the client.
+    Глобальний перехоплювач помилок бази даних.
+    Захищає від витоку внутрішньої інформації про структуру БД.
     """
-    # In a real app, log the actual exception `exc` using a logger here
     return JSONResponse(
         status_code=500,
-        content={"detail": "An internal database error occurred."},
+        content={"detail": "Помилка бази даних. Спробуйте пізніше."},
     )
 
 @app.get("/", include_in_schema=False)
 def root():
+    """Перенаправлення на документацію Swagger"""
     return RedirectResponse(url="/docs")
 
 if __name__ == "__main__":
