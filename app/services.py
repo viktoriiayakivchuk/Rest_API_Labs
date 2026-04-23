@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from repository import BookRepository
-from schemas import BookCreate
+from app.repository import BookRepository
+from app.schemas import BookCreate
 from uuid import uuid4
 
 class BookService:

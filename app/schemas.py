@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from uuid import UUID, uuid4
 from typing import Optional, List
 from enum import Enum
@@ -19,3 +19,10 @@ class BookCreate(BookBase):
 
 class Book(BookBase):
     id: UUID = Field(default_factory=uuid4)
+    model_config = ConfigDict(from_attributes=True)
+
+class PaginatedBooks(BaseModel):
+    items: List[Book]
+    total_count: int
+    limit: int
+    offset: int
