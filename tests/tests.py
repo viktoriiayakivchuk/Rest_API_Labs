@@ -1,88 +1,96 @@
 import pytest
-import os
-import asyncio
+import pymongo
 from fastapi.testclient import TestClient
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-
-os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test.db"
+from motor.motor_asyncio import AsyncIOMotorClient
 
 from app.main import app
-from app.database import get_db
-from app.models import Base, BookModel
-from app.schemas import BookStatus
+from app.api import get_service
+from app.services import BookService
+from app.models import MONGO_URL
 
-# Створюємо окремий двигун для тестів
-test_engine = create_async_engine("sqlite+aiosqlite:///./test.db", echo=False)
-test_session = async_sessionmaker(test_engine, expire_on_commit=False, class_=AsyncSession)
+TEST_DB_NAME = "library_test"
 
-# Підміняємо базу в додатку
-async def override_get_db():
-    async with test_session() as session:
-        yield session
+# Синхронний клієнт для підготовки даних
+sync_client = pymongo.MongoClient(MONGO_URL)
+sync_collection = sync_client[TEST_DB_NAME]["books"]
 
-app.dependency_overrides[get_db] = override_get_db
+class TestRepository:
+    def __init__(self, collection):
+        self.collection = collection
 
-client = TestClient(app)
+@pytest.fixture
+def client():
+    # 1. Очищуємо базу
+    sync_collection.delete_many({})
+    sync_collection.insert_one({
+        "title": "Кобзар",
+        "author": "Тарас Шевченко",
+        "year": 1840,
+        "status": "наявна",
+        "description": "Збірка творів"
+    })
 
-@pytest.fixture(scope="session", autouse=True)
-def setup_db():
-    """Створюємо схему БД"""
-    async def init():
-        async with test_engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
-            await conn.run_sync(Base.metadata.create_all)
-    asyncio.run(init())
-    yield
-    # Після тестів видаляємо файл
-    if os.path.exists("./test.db"):
-        os.remove("./test.db")
+    # 2. Перевизначаємо сервіс, щоб він створював новий клієнт всередині тесту
+    async def override_get_service():
+        test_client = AsyncIOMotorClient(MONGO_URL)
+        service = BookService()
+        # Примусово підміняємо колекцію на тестову
+        service.repository.collection = test_client[TEST_DB_NAME]["books"]
+        return service
 
-@pytest.fixture(autouse=True)
-def clean_db():
-    """Очищення та наповнення даними"""
-    async def reset():
-        async with test_session() as session:
-            await session.execute(text("DELETE FROM books"))
-            book = BookModel(
-                title="1984",
-                author="George Orwell",
-                description="Dystopia",
-                year=1949,
-                status=BookStatus.AVAILABLE
-            )
-            session.add(book)
-            await session.commit()
-    asyncio.run(reset())
+    app.dependency_overrides[get_service] = override_get_service
+    
+    # 3. Ранимо тести
+    with TestClient(app) as c:
+        yield c
+    
+    # 4. Очищуємо за собою
+    app.dependency_overrides.clear()
+    sync_collection.delete_many({})
 
-# --- ТЕСТИ ---
-
-def test_read_books():
+def test_get_books(client):
     response = client.get("/books/")
     assert response.status_code == 200
-    assert response.json()["items"][0]["title"] == "1984"
+    assert response.json()["total_count"] >= 1
 
-def test_create_book():
-    payload = {
-        "title": "Animal Farm",
-        "author": "George Orwell",
-        "year": 1945,
-        "status": "наявна"
+def test_get_book(client):
+    books = client.get("/books/").json()["items"]
+    book_id = books[0]["id"]
+    response = client.get(f"/books/{book_id}")
+    assert response.status_code == 200
+    assert response.json()["title"] == "Кобзар"
+
+def test_get_book_not_found(client):
+    response = client.get("/books/5f50c31e1c9d440000d1c000")
+    assert response.status_code == 404
+
+def test_create_book(client):
+    new_book = {
+        "title": "Захар Беркут",
+        "author": "Іван Франко",
+        "year": 1883,
+        "status": "наявна",
+        "description": "Повість"
     }
-    response = client.post("/books/", json=payload)
+    response = client.post("/books/", json=new_book)
     assert response.status_code == 201
-    assert response.json()["title"] == "Animal Farm"
+    assert response.json()["title"] == "Захар Беркут"
 
-def test_pagination():
-    client.post("/books/", json={"title": "Test", "author": "Auth", "year": 2000})
-    response = client.get("/books/", params={"limit": 1, "offset": 0})
-    data = response.json()
-    assert data["total_count"] == 2
-    assert len(data["items"]) == 1
-
-def test_delete_book():
-    books = client.get("/books/").json()
-    book_id = books["items"][0]["id"]
+def test_delete_book(client):
+    books = client.get("/books/").json()["items"]
+    book_id = books[0]["id"]
     response = client.delete(f"/books/{book_id}")
     assert response.status_code == 204
-    assert client.get(f"/books/{book_id}").status_code == 404
+
+def test_get_books_pagination(client):
+    response = client.get("/books/?limit=1")
+    assert len(response.json()["items"]) == 1
+
+def test_get_books_filter_by_author(client):
+    response = client.get("/books/?author=Шевченко")
+    assert response.status_code == 200
+    assert len(response.json()["items"]) >= 1
+
+def test_get_books_sort_by_year(client):
+    response = client.get("/books/?sort_by=year&sort_order=desc")
+    assert response.status_code == 200

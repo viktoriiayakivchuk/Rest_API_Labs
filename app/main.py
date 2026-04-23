@@ -1,28 +1,22 @@
 from contextlib import asynccontextmanager
 import uvicorn
+import logging
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.exc import SQLAlchemyError
 
 from app.api import router
-from app.database import engine
-from app.models import Base
+from app.models import client
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Ініціалізація БД при старті та очищення пулу з'єднань при зупинці.
-    """
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
     yield
-    await engine.dispose()
+    client.close()
 
 app = FastAPI(
-    title="Library Management API",
-    description="Advanced FastAPI logic with PostgreSQL, Pagination, and Validation",
-    version="0.2.0",
+    title="Book Management REST API",
+    description="A FastAPI-based REST API for managing books with MongoDB",
+    version="0.4.0",
     lifespan=lifespan
 )
 
@@ -36,20 +30,16 @@ app.add_middleware(
 
 app.include_router(router)
 
-@app.exception_handler(SQLAlchemyError)
-async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
-    """
-    Глобальний перехоплювач помилок бази даних.
-    Захищає від витоку внутрішньої інформації про структуру БД.
-    """
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logging.error(f"Unhandled exception: {exc}", exc_info=True)
     return JSONResponse(
         status_code=500,
-        content={"detail": "Помилка бази даних. Спробуйте пізніше."},
+        content={"detail": "Виникла внутрішня помилка сервера."},
     )
 
 @app.get("/", include_in_schema=False)
 def root():
-    """Перенаправлення на документацію Swagger"""
     return RedirectResponse(url="/docs")
 
 if __name__ == "__main__":

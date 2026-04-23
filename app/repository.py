@@ -1,47 +1,58 @@
-from app.models import BookModel
-from uuid import UUID
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from typing import List, Optional, Dict, Any
+from bson import ObjectId
+from app.models import books_collection
+from app.schemas import BookQueryParams
 
 class BookRepository:
-    def __init__(self, db: AsyncSession):
-        self.db = db
+    def __init__(self):
+        self.collection = books_collection
 
-    async def get_all(self, limit: int, offset: int, status: str = None, author: str = None):
-        stmt = select(BookModel)
-        if status:
-            stmt = stmt.where(BookModel.status == status)
-        if author:
-            stmt = stmt.where(BookModel.author.ilike(f"%{author}%"))
-        stmt = stmt.limit(limit).offset(offset)
-        result = await self.db.execute(stmt)
-        return result.scalars().all()
+    async def get_all(self, params: BookQueryParams) -> tuple[List[Dict[str, Any]], int]:
+        filter_query = {}
+        if params.status:
+            filter_query["status"] = params.status
+        if params.author:
+            filter_query["author"] = {"$regex": params.author, "$options": "i"}
+
+        total_count = await self.collection.count_documents(filter_query)
         
-    async def get_total_count(self, status: str = None, author: str = None):
-        stmt = select(func.count(BookModel.id))
-        if status:
-            stmt = stmt.where(BookModel.status == status)
-        if author:
-            stmt = stmt.where(BookModel.author.ilike(f"%{author}%"))
-        result = await self.db.execute(stmt)
-        return result.scalar()
+        cursor = self.collection.find(filter_query)
 
-    async def get_by_id(self, book_id: UUID):
-        stmt = select(BookModel).where(BookModel.id == book_id)
-        result = await self.db.execute(stmt)
-        return result.scalar_one_or_none()
+        if params.sort_by:
+            sort_direction = 1 if params.sort_order == "asc" else -1
+            cursor = cursor.sort(params.sort_by, sort_direction)
+            
+        cursor = cursor.skip(params.offset).limit(params.limit)
+        docs = await cursor.to_list(length=params.limit)
+        
+        for doc in docs:
+            doc["id"] = str(doc.pop("_id"))
+            
+        return docs, total_count
 
-    async def add(self, book_data: dict):
-        book = BookModel(**book_data)
-        self.db.add(book)
-        await self.db.commit()
-        await self.db.refresh(book)
-        return book
+    async def get_by_id(self, book_id: str) -> Optional[Dict[str, Any]]:
+        try:
+            obj_id = ObjectId(book_id)
+        except Exception:
+            return None
+            
+        doc = await self.collection.find_one({"_id": obj_id})
+        if doc:
+            doc["id"] = str(doc.pop("_id"))
+        return doc
 
-    async def delete(self, book_id: UUID):
-        book = await self.get_by_id(book_id)
-        if book:
-            await self.db.delete(book)
-            await self.db.commit()
-            return True
-        return False
+    async def add(self, book_data: dict) -> Dict[str, Any]:
+        result = await self.collection.insert_one(book_data)
+        book_data["id"] = str(result.inserted_id)
+        if "_id" in book_data:
+            del book_data["_id"]
+        return book_data
+
+    async def delete(self, book_id: str) -> bool:
+        try:
+            obj_id = ObjectId(book_id)
+        except Exception:
+            return False
+            
+        result = await self.collection.delete_one({"_id": obj_id})
+        return result.deleted_count > 0

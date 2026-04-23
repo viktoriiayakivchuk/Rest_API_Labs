@@ -7,9 +7,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-COPY ./requirements /code/requirements
+COPY requirements.txt /code/requirements.txt
 
-RUN uv pip install --system --no-cache -r /code/requirements
+RUN uv pip install --system --no-cache -r /code/requirements.txt
 
 COPY ./app /code/app
 

@@ -13,4 +13,7 @@ dependencies = [
     "sqlalchemy>=2.0.0",
     "asyncpg>=0.29.0",
     "aiosqlite>=0.20.0",
+    "motor>=3.7.1",
+    "pydantic-mongo>=3.1.0",
+    "pymongo>=4.17.0",
 ]
