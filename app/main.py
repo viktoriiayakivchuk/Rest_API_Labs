@@ -1,22 +1,30 @@
-from contextlib import asynccontextmanager
 import uvicorn
 import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
+from motor.motor_asyncio import AsyncIOMotorClient
 
 from app.api import router
-from app.models import client
+from app.models import MONGO_URL, MONGO_DB_NAME
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    app.mongodb_client = AsyncIOMotorClient(MONGO_URL)
+    app.mongodb_db = app.mongodb_client[MONGO_DB_NAME]
+    
+    logging.info(f"Connected to MongoDB: {MONGO_DB_NAME}")
+    
     yield
-    client.close()
+    
+    app.mongodb_client.close()
+    logging.info("Disconnected from MongoDB")
 
 app = FastAPI(
     title="Book Management REST API",
-    description="A FastAPI-based REST API for managing books with MongoDB",
-    version="0.4.0",
+    description="A FastAPI-based REST API for managing books with MongoDB (Lab 4-5)",
+    version="0.5.0",
     lifespan=lifespan
 )
 

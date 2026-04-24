@@ -1,9 +1,5 @@
-from motor.motor_asyncio import AsyncIOMotorClient
 import os
+from motor.motor_asyncio import AsyncIOMotorClient
 
 MONGO_URL = os.getenv("MONGO_URL", "mongodb://mongo_admin:password@localhost:27017")
-
-client = AsyncIOMotorClient(MONGO_URL)
-db = client.library_db  
-
-books_collection = db.books
+MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "library_db")

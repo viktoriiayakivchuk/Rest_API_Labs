@@ -1,12 +1,18 @@
 from typing import List
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Request
 from app.schemas import BookRequest, BookResponse, PaginatedBookResponse, BookQueryParams
 from app.services import BookService
 
 router = APIRouter(prefix="/books", tags=["Books"])
 
-async def get_service():
-    return BookService()
+async def get_service(request: Request):
+    """
+    Ця функція тепер отримує доступ до бази через request.app.
+    Це критично для коректної роботи тестів та уникнення помилок Event Loop.
+    """
+    service = BookService()
+    service.repository.collection = request.app.mongodb_db["books"]
+    return service
 
 @router.get("/", response_model=PaginatedBookResponse)
 async def get_all_books(

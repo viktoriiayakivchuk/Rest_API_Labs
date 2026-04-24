@@ -1,11 +1,10 @@
 from typing import List, Optional, Dict, Any
 from bson import ObjectId
-from app.models import books_collection
 from app.schemas import BookQueryParams
 
 class BookRepository:
-    def __init__(self):
-        self.collection = books_collection
+    def __init__(self, collection=None):
+        self.collection = collection
 
     async def get_all(self, params: BookQueryParams) -> tuple[List[Dict[str, Any]], int]:
         filter_query = {}
@@ -15,7 +14,6 @@ class BookRepository:
             filter_query["author"] = {"$regex": params.author, "$options": "i"}
 
         total_count = await self.collection.count_documents(filter_query)
-        
         cursor = self.collection.find(filter_query)
 
         if params.sort_by:
@@ -42,10 +40,18 @@ class BookRepository:
         return doc
 
     async def add(self, book_data: dict) -> Dict[str, Any]:
-        result = await self.collection.insert_one(book_data)
+        data_to_insert = book_data.copy()
+        
+        if "id" in data_to_insert:
+            del data_to_insert["id"]
+            
+        result = await self.collection.insert_one(data_to_insert)
+        
         book_data["id"] = str(result.inserted_id)
+        
         if "_id" in book_data:
             del book_data["_id"]
+            
         return book_data
 
     async def delete(self, book_id: str) -> bool:
