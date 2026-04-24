@@ -9,7 +9,6 @@ from app.models import MONGO_URL
 
 TEST_DB_NAME = "library_test"
 
-# Залишаємо для очищення, але основну роботу довіримо застосунку
 sync_client = pymongo.MongoClient(MONGO_URL)
 sync_collection = sync_client[TEST_DB_NAME]["books"]
 
@@ -20,12 +19,9 @@ def setup_test_env():
 
 @pytest.fixture
 def client():
-    # 1. Очищуємо базу перед тестом
     sync_collection.delete_many({})
     
     with TestClient(app) as c:
-        # 2. ВСТАВЛЯЄМО ДАНІ ЧЕРЕЗ САМЕ API
-        # Це гарантує, що застосунок точно побачить ці дані
         c.post("/books/", json={
             "title": "Кобзар",
             "author": "Тарас Шевченко",
@@ -45,7 +41,6 @@ def test_get_books(client):
 
 def test_get_book(client):
     books = client.get("/books/").json()["items"]
-    # Шукаємо Кобзар
     target_book = next((b for b in books if b["title"] == "Кобзар"), None)
     
     assert target_book is not None, f"Кобзар не знайдено серед: {[b['title'] for b in books]}"
@@ -84,7 +79,6 @@ def test_get_books_pagination(client):
     assert len(response.json()["items"]) <= 1
 
 def test_get_books_filter_by_author(client):
-    # Фільтруємо по Шевченку, якого ми вставили через POST у фікстурі
     response = client.get("/books/", params={"author": "Шевченко"})
     assert response.status_code == 200
     items = response.json()["items"]
