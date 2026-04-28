@@ -9,24 +9,20 @@ SWAGGER_TEMPLATE = {
     "swagger": "2.0",
     "info": {
         "title": "Library Management API (Lab 5)",
-        "description": "REST API на Flask-RESTful",
+        "description": "REST API on Flask-RESTful with detailed Swagger documentation",
         "version": "1.0.0",
     },
     "basePath": "/",
     "definitions": {
         "BookRequest": {
             "type": "object",
-            "required": ["title", "author", "year"],
+            "required": ["title", "author", "year", "status"],
             "properties": {
-                "title": {"type": "string", "minLength": 1, "maxLength": 100, "example": "Кобзар"},
-                "author": {"type": "string", "minLength": 2, "maxLength": 100, "example": "Тарас Шевченко"},
-                "description": {"type": "string", "maxLength": 400, "example": "Збірка поетичних творів"},
-                "year": {"type": "integer", "minimum": 1, "example": 1840},
-                "status": {
-                    "type": "string", 
-                    "enum": ["наявна", "видана"],
-                    "example": "наявна"
-                }
+                "title": {"type": "string", "minLength": 1, "maxLength": 100, "example": "The Great Gatsby"},
+                "author": {"type": "string", "minLength": 2, "maxLength": 100, "example": "F. Scott Fitzgerald"},
+                "description": {"type": "string", "maxLength": 400, "example": "A novel about the American dream"},
+                "year": {"type": "integer", "minimum": 1, "example": 1925},
+                "status": {"$ref": "#/definitions/BookStatus"}
             },
         },
         "BookResponse": {
@@ -37,8 +33,13 @@ SWAGGER_TEMPLATE = {
                 "author": {"type": "string"},
                 "description": {"type": "string"},
                 "year": {"type": "integer"},
-                "status": {"type": "string"},
+                "status": {"$ref": "#/definitions/BookStatus"},
             },
+        },
+        "BookStatus": {
+            "type": "string",
+            "enum": ["available", "issued", "borrowed"],
+            "example": "available"
         },
         "PaginatedBookResponse": {
             "type": "object",
@@ -52,6 +53,18 @@ SWAGGER_TEMPLATE = {
                 "offset": {"type": "integer", "example": 0},
                 "next_page": {"type": "string", "x-nullable": True, "example": "/books?limit=10&offset=10"},
                 "prev_page": {"type": "string", "x-nullable": True, "example": None}
+            }
+        },
+        "ValidationError": {
+            "type": "object",
+            "properties": {
+                "loc": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "example": ["body", "year"]
+                },
+                "msg": {"type": "string", "example": "Year cannot be greater than the current year"},
+                "type": {"type": "string", "example": "value_error"}
             }
         }
     },
