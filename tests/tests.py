@@ -1,88 +1,94 @@
 import pytest
-import os
-import asyncio
-from fastapi.testclient import TestClient
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-
-os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test.db"
-
+import uuid
 from app.main import app
-from app.database import get_db
-from app.models import Base, BookModel
-from app.schemas import BookStatus
+from app.repository import _books_db
 
-# Створюємо окремий двигун для тестів
-test_engine = create_async_engine("sqlite+aiosqlite:///./test.db", echo=False)
-test_session = async_sessionmaker(test_engine, expire_on_commit=False, class_=AsyncSession)
+@pytest.fixture
+def client():
+    app.config['TESTING'] = True
+    with app.test_client() as client:
+        _books_db.clear()
+        yield client
 
-# Підміняємо базу в додатку
-async def override_get_db():
-    async with test_session() as session:
-        yield session
-
-app.dependency_overrides[get_db] = override_get_db
-
-client = TestClient(app)
-
-@pytest.fixture(scope="session", autouse=True)
-def setup_db():
-    """Створюємо схему БД"""
-    async def init():
-        async with test_engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
-            await conn.run_sync(Base.metadata.create_all)
-    asyncio.run(init())
-    yield
-    # Після тестів видаляємо файл
-    if os.path.exists("./test.db"):
-        os.remove("./test.db")
-
-@pytest.fixture(autouse=True)
-def clean_db():
-    """Очищення та наповнення даними"""
-    async def reset():
-        async with test_session() as session:
-            await session.execute(text("DELETE FROM books"))
-            book = BookModel(
-                title="1984",
-                author="George Orwell",
-                description="Dystopia",
-                year=1949,
-                status=BookStatus.AVAILABLE
-            )
-            session.add(book)
-            await session.commit()
-    asyncio.run(reset())
-
-# --- ТЕСТИ ---
-
-def test_read_books():
-    response = client.get("/books/")
+def test_health_check(client):
+    response = client.get('/health')
     assert response.status_code == 200
-    assert response.json()["items"][0]["title"] == "1984"
+    assert response.json == {"status": "ok"}
 
-def test_create_book():
+def test_create_book_success(client):
     payload = {
-        "title": "Animal Farm",
+        "title": "1984",
         "author": "George Orwell",
-        "year": 1945,
-        "status": "наявна"
+        "description": "Dystopian novel",
+        "year": 1949,
+        "status": "available"
     }
-    response = client.post("/books/", json=payload)
+    response = client.post('/books', json=payload)
     assert response.status_code == 201
-    assert response.json()["title"] == "Animal Farm"
+    data = response.json
+    assert data["title"] == "1984"
+    assert "id" in data
+    assert data["status"] == "available"
 
-def test_pagination():
-    client.post("/books/", json={"title": "Test", "author": "Auth", "year": 2000})
-    response = client.get("/books/", params={"limit": 1, "offset": 0})
-    data = response.json()
-    assert data["total_count"] == 2
-    assert len(data["items"]) == 1
+def test_create_book_validation_error(client):
+    payload = {
+        "title": "Future",
+        "author": "Author",
+        "description": "Desc",
+        "year": 2099,
+        "status": "available"
+    }
+    response = client.post('/books', json=payload)
+    assert response.status_code == 422
+    assert "errors" in response.json
 
-def test_delete_book():
-    books = client.get("/books/").json()
-    book_id = books["items"][0]["id"]
-    response = client.delete(f"/books/{book_id}")
-    assert response.status_code == 204
-    assert client.get(f"/books/{book_id}").status_code == 404
+def test_get_all_books_pagination(client):
+    for i in range(3):
+        client.post('/books', json={
+            "title": f"Book {i}",
+            "author": "Author",
+            "description": "Description",
+            "year": 2000,
+            "status": "available"
+        })
+    
+    response = client.get('/books?limit=2&offset=0')
+    assert response.status_code == 200
+    data = response.json
+    assert len(data["items"]) == 2
+    assert data["total"] == 3
+
+def test_get_book_by_id_success(client):
+    res = client.post('/books', json={
+        "title": "Test",
+        "author": "Author",
+        "description": "Desc",
+        "year": 2020,
+        "status": "available"
+    })
+    book_id = res.json["id"]
+    
+    response = client.get(f'/books/{book_id}')
+    assert response.status_code == 200
+    assert response.json["id"] == book_id
+
+def test_get_book_by_id_not_found(client):
+    fake_id = str(uuid.uuid4())
+    response = client.get(f'/books/{fake_id}')
+    assert response.status_code == 404
+
+def test_delete_book(client):
+    res = client.post('/books', json={
+        "title": "To Delete",
+        "author": "Author",
+        "description": "Desc",
+        "year": 2020,
+        "status": "available"
+    })
+    book_id = res.json["id"]
+    
+    delete_res = client.delete(f'/books/{book_id}')
+    assert delete_res.status_code == 200
+    
+    get_res = client.get(f'/books/{book_id}')
+    assert get_res.status_code == 404

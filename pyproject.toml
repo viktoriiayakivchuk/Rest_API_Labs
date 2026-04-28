@@ -14,3 +14,8 @@ dependencies = [
     "asyncpg>=0.29.0",
     "aiosqlite>=0.20.0",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
