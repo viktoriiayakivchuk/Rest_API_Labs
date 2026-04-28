@@ -1,47 +1,47 @@
-from app.models import BookModel
-from uuid import UUID
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+import uuid
+from typing import List, Optional, Tuple
+
+_books_db = []
 
 class BookRepository:
-    def __init__(self, db: AsyncSession):
-        self.db = db
+    @staticmethod
+    def get_all(
+        status: Optional[str] = None,
+        author: Optional[str] = None,
+        limit: int = 10,
+        offset: int = 0
+    ) -> Tuple[List[dict], int]:
+        query_set = _books_db
 
-    async def get_all(self, limit: int, offset: int, status: str = None, author: str = None):
-        stmt = select(BookModel)
         if status:
-            stmt = stmt.where(BookModel.status == status)
+            query_set = [b for b in query_set if b.get("status") == status]
         if author:
-            stmt = stmt.where(BookModel.author.ilike(f"%{author}%"))
-        stmt = stmt.limit(limit).offset(offset)
-        result = await self.db.execute(stmt)
-        return result.scalars().all()
+            query_set = [b for b in query_set if author.lower() in b.get("author", "").lower()]
+
+        total_count = len(query_set)
         
-    async def get_total_count(self, status: str = None, author: str = None):
-        stmt = select(func.count(BookModel.id))
-        if status:
-            stmt = stmt.where(BookModel.status == status)
-        if author:
-            stmt = stmt.where(BookModel.author.ilike(f"%{author}%"))
-        result = await self.db.execute(stmt)
-        return result.scalar()
+        items = query_set[offset : offset + limit]
+        
+        return items, total_count
 
-    async def get_by_id(self, book_id: UUID):
-        stmt = select(BookModel).where(BookModel.id == book_id)
-        result = await self.db.execute(stmt)
-        return result.scalar_one_or_none()
+    @staticmethod
+    def get_by_id(book_id: str) -> Optional[dict]:
+        target_id = str(book_id)
+        for book in _books_db:
+            if str(book.get("id")) == target_id:
+                return book
+        return None
 
-    async def add(self, book_data: dict):
-        book = BookModel(**book_data)
-        self.db.add(book)
-        await self.db.commit()
-        await self.db.refresh(book)
-        return book
+    @staticmethod
+    def add(book_data: dict) -> dict:
+        _books_db.append(book_data)
+        return book_data
 
-    async def delete(self, book_id: UUID):
-        book = await self.get_by_id(book_id)
-        if book:
-            await self.db.delete(book)
-            await self.db.commit()
-            return True
+    @staticmethod
+    def delete(book_id: str) -> bool:
+        target_id = str(book_id)
+        for i, book in enumerate(_books_db):
+            if str(book.get("id")) == target_id:
+                _books_db.pop(i)
+                return True
         return False
