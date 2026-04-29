@@ -8,17 +8,19 @@ from app.auth.router import router as auth_router
 from app.books.router import router as books_router
 from app.core.database import engine, Base 
 from app.exceptions import NotFoundError
-
-from app.auth.models import User
-from app.books.models import Book
+from app.database.redis import init_redis, close_redis 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    yield
-    await engine.dispose()
     
+    init_redis()
+    
+    yield
+    
+    await close_redis()
+    await engine.dispose()
 
 app = FastAPI(
     title="Library API IPZ-33", 

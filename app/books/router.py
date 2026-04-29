@@ -1,28 +1,30 @@
 import uuid
 from typing import Literal
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query
 
 from app.auth.models import User
 from app.books.schemas import BookCreate, BookResponse, PaginatedBookResponse
-from app.core.dependencies import get_book_service, get_current_user
+from app.core.dependencies import get_book_service, get_current_user, rate_limit
 from app.books.service import BookService
 
-router = APIRouter(prefix="/api/books", tags=["Books"])
+router = APIRouter(
+    prefix="/api/books", 
+    tags=["Books"],
+    dependencies=[Depends(rate_limit)]
+)
 
 @router.get("", response_model=PaginatedBookResponse)
 async def get_books(
-    request: Request,
-    status: Literal["available", "borrowed"] | None = Query(None, description="Filter by status"),
-    author: str | None = Query(None, description="Filter by author"),
-    sort_by: Literal["title", "year"] | None = Query(None, description="Sort by 'title' or 'year'"),
-    sort_order: Literal["asc", "desc"] = Query("asc", description="Sort order: 'asc' or 'desc'"),
+    status: Literal["available", "borrowed"] | None = Query(None),
+    author: str | None = Query(None),
+    sort_by: Literal["title", "year"] | None = Query(None),
+    sort_order: Literal["asc", "desc"] = Query("asc"),
     limit: int = Query(10, ge=1, le=100),
     offset: int = Query(0, ge=0),
     service: BookService = Depends(get_book_service),
     current_user: User = Depends(get_current_user),
 ):
     return await service.get_books(
-        request=request,
         status=status,
         author=author,
         sort_by=sort_by,
@@ -47,10 +49,11 @@ async def create_book(
 ):
     return await service.create_book(book)
 
-@router.delete("/{book_id}")
+@router.delete("/{book_id}", status_code=204)
 async def delete_book(
     book_id: uuid.UUID, 
     service: BookService = Depends(get_book_service), 
     current_user: User = Depends(get_current_user)
 ):
-    return await service.delete_book(book_id)
+    await service.delete_book(book_id)
+    return None

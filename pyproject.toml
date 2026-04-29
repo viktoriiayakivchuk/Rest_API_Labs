@@ -1,7 +1,7 @@
 [project]
 name = "programming-rest-api"
 version = "0.1.0"
-description = "Add your description here"
+description = "Library API with Rate Limiting for IPZ-33"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
@@ -21,4 +21,6 @@ dependencies = [
     "python-jose[cryptography]>=3.5.0",
     "passlib[bcrypt]>=1.7.4",
     "python-multipart>=0.0.26",
+    "redis>=5.0.1",
+    "pydantic-settings>=2.13.1",
 ]
