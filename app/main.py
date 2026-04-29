@@ -6,16 +6,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.auth.router import router as auth_router
 from app.books.router import router as books_router
-from app.core.database import engine, Base # Додано Base
+from app.core.database import engine, Base 
 from app.exceptions import NotFoundError
 
-# Імпортуємо моделі, щоб Base їх "побачив" перед створенням таблиць
 from app.auth.models import User
 from app.books.models import Book
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Цей блок примусово створить таблицю users, якщо її немає
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
@@ -49,7 +47,6 @@ health_router = APIRouter(prefix="/api", tags=["Health"])
 async def health():
     return {"status": "ok"}
 
-# Підключаємо твої роутери
 app.include_router(auth_router)
 app.include_router(books_router)
 app.include_router(health_router)

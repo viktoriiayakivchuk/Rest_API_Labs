@@ -4,13 +4,16 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from fastapi import HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
 import jwt
 import bcrypt
 
-SECRET_KEY = os.getenv("SECRET_KEY", "ipz-33-very-secret-key")
+SECRET_KEY = os.getenv("SECRET_KEY", "ipz-33-viktoriia-very-secret-key-32-chars")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "15"))
-REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "3"))
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 async def verify_password(plain_password: str, hashed_password: str):
     return await asyncio.to_thread(bcrypt.checkpw, plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
@@ -25,16 +28,21 @@ async def get_password_hash(password: str):
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     now = datetime.now(timezone.utc)
-    expire = now + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    if expires_delta:
+        expire = now + expires_delta
+    else:
+        expire = now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire, "iat": now, "jti": uuid.uuid4().hex, "type": "access"})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
 
 def create_refresh_token(data: dict):
     to_encode = data.copy()
     now = datetime.now(timezone.utc)
     expire = now + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
     to_encode.update({"exp": expire, "iat": now, "jti": uuid.uuid4().hex, "type": "refresh"})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
 
 def verify_token_type(token: str, expected_type: str) -> uuid.UUID:
     credentials_exception = HTTPException(
@@ -46,11 +54,16 @@ def verify_token_type(token: str, expected_type: str) -> uuid.UUID:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         if payload.get("type") != expected_type:
             raise credentials_exception
+            
         user_id_str = payload.get("sub")
         if user_id_str is None:
             raise credentials_exception
+            
         return uuid.UUID(user_id_str)
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired"
+        )
     except (jwt.InvalidTokenError, ValueError):
         raise credentials_exception
