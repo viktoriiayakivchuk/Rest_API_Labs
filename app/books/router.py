@@ -1,0 +1,56 @@
+import uuid
+from typing import Literal
+from fastapi import APIRouter, Depends, Query, Request
+
+from app.auth.models import User
+from app.books.schemas import BookCreate, BookResponse, PaginatedBookResponse
+from app.core.dependencies import get_book_service, get_current_user
+from app.books.service import BookService
+
+router = APIRouter(prefix="/api/books", tags=["Books"])
+
+@router.get("", response_model=PaginatedBookResponse)
+async def get_books(
+    request: Request,
+    status: Literal["available", "borrowed"] | None = Query(None, description="Filter by status"),
+    author: str | None = Query(None, description="Filter by author"),
+    sort_by: Literal["title", "year"] | None = Query(None, description="Sort by 'title' or 'year'"),
+    sort_order: Literal["asc", "desc"] = Query("asc", description="Sort order: 'asc' or 'desc'"),
+    limit: int = Query(10, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    service: BookService = Depends(get_book_service),
+    current_user: User = Depends(get_current_user),
+):
+    return await service.get_books(
+        request=request,
+        status=status,
+        author=author,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        limit=limit,
+        offset=offset
+    )
+
+@router.get("/{book_id}", response_model=BookResponse)
+async def get_book(
+    book_id: uuid.UUID, 
+    service: BookService = Depends(get_book_service), 
+    current_user: User = Depends(get_current_user)
+):
+    return await service.get_book(book_id)
+
+@router.post("", status_code=201, response_model=BookResponse)
+async def create_book(
+    book: BookCreate, 
+    service: BookService = Depends(get_book_service), 
+    current_user: User = Depends(get_current_user)
+):
+    return await service.create_book(book)
+
+@router.delete("/{book_id}")
+async def delete_book(
+    book_id: uuid.UUID, 
+    service: BookService = Depends(get_book_service), 
+    current_user: User = Depends(get_current_user)
+):
+    return await service.delete_book(book_id)

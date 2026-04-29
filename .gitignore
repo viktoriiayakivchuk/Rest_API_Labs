@@ -205,3 +205,10 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Local Database 
+test.db
+test.db-journal
+
+# Alembic logic
+alembic.log

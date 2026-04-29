@@ -9,8 +9,8 @@ os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test.db"
 
 from app.main import app
 from app.database import get_db
-from app.models import Base, BookModel
-from app.schemas import BookStatus
+from app.books.models import Base, BookModel
+from app.books.schemas import BookStatus
 
 # Створюємо окремий двигун для тестів
 test_engine = create_async_engine("sqlite+aiosqlite:///./test.db", echo=False)

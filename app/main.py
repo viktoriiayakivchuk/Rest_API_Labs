@@ -1,28 +1,22 @@
 from contextlib import asynccontextmanager
 import uvicorn
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi import FastAPI, Request, APIRouter
+from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.exc import SQLAlchemyError
 
-from app.api import router
-from app.database import engine
-from app.models import Base
+from app.auth.router import router as auth_router
+from app.books.router import router as books_router
+from app.core.database import engine
+from app.exceptions import NotFoundError
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Ініціалізація БД при старті та очищення пулу з'єднань при зупинці.
-    """
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
     yield
     await engine.dispose()
 
 app = FastAPI(
-    title="Library Management API",
-    description="Advanced FastAPI logic with PostgreSQL, Pagination, and Validation",
-    version="0.2.0",
+    title="Library API IPZ-33", 
+    version="1.0.0",
     lifespan=lifespan
 )
 
@@ -34,22 +28,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(router)
-
-@app.exception_handler(SQLAlchemyError)
-async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
-    """
-    Глобальний перехоплювач помилок бази даних.
-    Захищає від витоку внутрішньої інформації про структуру БД.
-    """
+@app.exception_handler(NotFoundError)
+async def not_found_error_handler(request: Request, exc: NotFoundError):
     return JSONResponse(
-        status_code=500,
-        content={"detail": "Помилка бази даних. Спробуйте пізніше."},
+        status_code=404,
+        content={"detail": exc.detail},
     )
+
+health_router = APIRouter(prefix="/api", tags=["Health"])
+
+@health_router.get("/health")
+async def health():
+    return {"status": "ok"}
+
+app.include_router(auth_router)
+app.include_router(books_router)
+app.include_router(health_router)
 
 @app.get("/", include_in_schema=False)
 def root():
-    """Перенаправлення на документацію Swagger"""
     return RedirectResponse(url="/docs")
 
 if __name__ == "__main__":
