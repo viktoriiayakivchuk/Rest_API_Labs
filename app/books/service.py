@@ -53,7 +53,7 @@ class BookService:
             author=book_in.author,
             description=book_in.description,
             status=book_in.status,
-            year=book_in.year,
+            year_published=book_in.year,
         )
         return await self.repository.create(book)
 

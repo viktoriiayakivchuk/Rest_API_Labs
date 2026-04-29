@@ -1,8 +1,7 @@
 import uuid
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
-from sqlalchemy import asc, desc, func
+from sqlalchemy import select, asc, desc, func
 from app.books.models import Book
 
 class BookRepository:
@@ -29,7 +28,7 @@ class BookRepository:
             order_func = desc(Book.title) if sort_order == "desc" else asc(Book.title)
             query = query.order_by(order_func)
         elif sort_by == "year":
-            order_func = desc(Book.year) if sort_order == "desc" else asc(Book.year)
+            order_func = desc(Book.year_published) if sort_order == "desc" else asc(Book.year_published)
             query = query.order_by(order_func)
         else:
             query = query.order_by(asc(Book.id))
@@ -44,8 +43,9 @@ class BookRepository:
         return list(result.scalars().all()), total_count
 
     async def get_by_id(self, book_id: uuid.UUID) -> Optional[Book]:
-        result = await self.session.execute(select(Book).where(Book.id == book_id))
-        return result.scalars().first()
+        query = select(Book).where(Book.id == book_id)
+        result = await self.session.execute(query)
+        return result.scalar_one_or_none()
 
     async def create(self, book: Book) -> Book:
         self.session.add(book)

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator, AliasChoices
 from uuid import UUID
 from typing import Optional, List
 from enum import Enum
@@ -12,7 +12,7 @@ class BookBase(BaseModel):
     title: str = Field(..., min_length=2, max_length=100)
     author: str = Field(..., min_length=2, max_length=100)
     description: str = Field(..., min_length=2, max_length=400)
-    year: int = Field(..., gt=0)
+    year: int = Field(..., gt=0, validation_alias=AliasChoices('year', 'year_published'))
     status: BookStatus = BookStatus.AVAILABLE
 
     @field_validator("title", "author", "description")
@@ -42,7 +42,7 @@ class BookCreate(BookBase):
 
 class BookResponse(BookBase):
     id: UUID
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 class PaginatedBookResponse(BaseModel):
     items: List[BookResponse]
