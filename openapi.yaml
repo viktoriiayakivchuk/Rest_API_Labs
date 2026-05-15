@@ -1,0 +1,113 @@
+openapi: 3.0.0
+info:
+  title: Library API (Mock)
+  version: 1.0.0
+  description: Mock API для бібліотеки з використанням Prism
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Перевірка працездатності
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              example:
+                status: "ok"
+
+  /books:
+    get:
+      tags:
+        - Books
+      summary: Отримати список книг з пагінацією
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Успішне отримання списку
+          content:
+            application/json:
+              example:
+                items:
+                  - id: "550e8400-e29b-41d4-a716-446655440000"
+                    title: "Кобзар"
+                    author: "Тарас Шевченко"
+                    description: "Збірка поетичних творів"
+                    year: 1840
+                    status: "available"
+                  - id: "661f9511-f30c-52e5-b827-557766551111"
+                    title: "Тигролови"
+                    author: "Іван Багряний"
+                    description: "Пригодницький роман"
+                    year: 1944
+                    status: "issued"
+                total: 2
+                limit: 10
+                offset: 0
+                next_page: null
+                prev_page: null
+
+    post:
+      tags:
+        - Books
+      summary: Створити нову книгу
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookRequest'
+      responses:
+        '201':
+          description: Книгу створено
+          content:
+            application/json:
+              example:
+                id: "772g0622-g41d-63f6-c938-668877662222"
+                title: "Маруся Чурай"
+                author: "Ліна Костенко"
+                description: "Історичний роман у віршах"
+                year: 1979
+                status: "available"
+
+components:
+  schemas:
+    BookRequest:
+      type: object
+      required:
+        - title
+        - author
+        - description
+        - status
+        - year
+      properties:
+        title:
+          type: string
+          minLength: 2
+          example: "Захар Беркут"
+        author:
+          type: string
+          minLength: 2
+          example: "Іван Франко"
+        description:
+          type: string
+          example: "Історична повість про боротьбу проти монгольської навали"
+        status:
+          type: string
+          enum: [available, issued, borrowed]
+          example: "available"
+        year:
+          type: integer
+          example: 1883
