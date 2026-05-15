@@ -11,6 +11,8 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - library_network
 
   redis:
     image: redis:latest
@@ -18,6 +20,8 @@ services:
     restart: always
     ports:
       - "6379:6379"
+    networks:
+      - library_network
 
   app:
     build: .
@@ -27,11 +31,35 @@ services:
     environment:
       DATABASE_URL: "postgresql+asyncpg://user:password@db:5432/library"
       REDIS_URL: "redis://redis:6379/0"
+      # Вимикаємо Rate Limiter для тестів, як у одногрупника
+      RATE_LIMITER_ENABLED: "False" 
     depends_on:
       - db
       - redis
     volumes:
       - .:/code
+    networks:
+      - library_network
+
+  # Додаємо сервіс Locust для Лаби №10
+  locust:
+    image: locustio/locust
+    container_name: library_locust
+    ports:
+      - "8089:8089"
+    volumes:
+      - ./locustfile.py:/mnt/locust/locustfile.py
+    # Вказуємо хост вашого API всередині мережі Docker
+    command: -f /mnt/locust/locustfile.py --host=http://app:8000
+    depends_on:
+      - app
+    networks:
+      - library_network
+
+
+networks:
+  library_network:
+    driver: bridge
 
 volumes:
   postgres_data:

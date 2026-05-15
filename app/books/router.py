@@ -1,6 +1,6 @@
 import uuid
 from typing import Literal
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request # Додано Request
 
 from app.auth.models import User
 from app.books.schemas import BookCreate, BookResponse, PaginatedBookResponse
@@ -10,11 +10,12 @@ from app.books.service import BookService
 router = APIRouter(
     prefix="/api/books", 
     tags=["Books"],
-    dependencies=[Depends(rate_limit)]
+    # dependencies=[Depends(rate_limit)] # Вимкнено для навантажувального тестування
 )
 
 @router.get("", response_model=PaginatedBookResponse)
 async def get_books(
+    request: Request, 
     status: Literal["available", "borrowed"] | None = Query(None),
     author: str | None = Query(None),
     sort_by: Literal["title", "year"] | None = Query(None),
@@ -25,6 +26,7 @@ async def get_books(
     current_user: User = Depends(get_current_user),
 ):
     return await service.get_books(
+        request=request, # Передаємо request у сервіс
         status=status,
         author=author,
         sort_by=sort_by,
